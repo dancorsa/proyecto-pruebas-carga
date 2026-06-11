@@ -188,8 +188,8 @@ En cada escenario se debe reportar y analizar:
 
 | Escenario | VUs pico | p95 (ms) | p99 (ms) | Throughput (req/s) | Error% HTTP | ¿Cumple SLO? |
 |-----------|---------|---------|---------|------------------|------------|-------------|
-| Baseline | 10 | 21 | 27 | 43.5 | 0.00% | ✅ Todos |
-| Load E2 | 100 | 64 | 100 | 375 | 0.00% | ✅ Todos |
+| Baseline | 10 | 22 | 139 | 43.0 | 0.00% | ✅ Todos |
+| Load E2 | 100 | 101 | 134 | 372 | 0.00% | ✅ Todos |
 | Stress E3 | 600 | 2 170 | 4 497 | 1 272 | 0.00% | ❌ p95 y p99 |
 | Spike pico | 300 | 366 | 380 | 834 | 0.00% | ❌ p95 |
 | Soak (60 min) | 100 | 22 | 30 | 63 | 0.007% | ✅ Todos |

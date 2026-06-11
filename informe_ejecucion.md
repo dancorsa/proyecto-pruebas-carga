@@ -104,9 +104,9 @@
 
 | Escenario | VUs pico | Avg (ms) | p95 (ms) | p99 (ms) | Throughput (req/s) | Error% total | ¿Cumple SLO? |
 |-----------|---------|---------|---------|---------|------------------|------------|-------------|
-| Baseline | 10 | 11 | **21** | **27** | 43.5 | 0.00% | ✅ Todos |
-| Load E1 | 50 | 14 | **41** | **61** | 181 | 33.17%* | ✅ API |
-| Load E2 | 100 | 18 | **64** | **100** | 375 | 64.56%* | ✅ API |
+| Baseline | 10 | 14 | **22** | **139** | 43.0 | 0.00% | ✅ Todos |
+| Load E1 | 50 | 16 | **30** | **47** | 178 | 32.59%* | ✅ API |
+| Load E2 | 100 | 20 | **101** | **134** | 372 | 64.20%* | ✅ API |
 | Stress E1 | 200 | 90 | **93** | **2 559** | 1 089 | 84.2%* | ⚠️ p99 |
 | Stress E2 | 400 | 160 | **298** | **2 440** | 1 230 | 91.8%* | ⚠️ p99 |
 | Stress E3 | 600 | 351 | **2 170** | **4 497** | 1 272 | 89.4%* | ❌ p95 y p99 |
@@ -122,21 +122,24 @@
 ### 3.1 Baseline
 
 ```
-summary = 13 042 in 00:05:00 = 43.5/s  Avg: 11  Min: 6  Max: 47  Err: 0 (0.00%)
+summary = 12 877 in 00:05:00 = 43.0/s  Avg: 14  Min: 6  Max: 577  Err: 0 (0.00%)
 
 Aggregate Report:
 Label              # Samples  Average  Median  90% Line  95% Line  99% Line  Error%  Throughput
-POST /register     13 042     11       10      19        21        27        0.00%   43.5/s
+POST /register     12 877     14       10      19        22        139       0.00%   43.0/s
 ```
+
+> Nota: el p99=139ms y Max=577ms reflejan que el baseline se ejecutó con el HashMap ya
+> poblado por los escenarios previos (Stress, Spike, Soak). Todos los SLOs se cumplen.
 
 ### 3.2 Load Test
 
 ```
 Etapa 1 (50 VUs):
-summary = 54 139 in 00:05:00 = 181/s  Avg: 14  Min: 1  Max: 124  Err: 17 960 (33.17%)
+summary = 53 510 in 00:05:00 = 178/s  Avg: 16  Min: 1  Max: 1827  Err: 17 441 (32.59%)
 
 Etapa 2 (100 VUs):
-summary = 157 492 in 00:07:00 = 375/s  Avg: 18  Min: 0  Max: 233  Err: 101 673 (64.56%)
+summary = 156 269 in 00:07:00 = 372/s  Avg: 20  Min: 0  Max: 501  Err: 100 325 (64.20%)
 
 Nota: Errores son BindException TCP (Windows). HTTP 200 en peticiones exitosas: 100%.
 ```
@@ -224,9 +227,9 @@ No se detectó regresión. Las métricas son prácticamente idénticas al baseli
 
 | Métrica | Baseline inicial | Regresión | Variación | ¿Regresión detectada? |
 |---------|-----------------|----------|----------|----------------------|
-| p95 | 21 ms | 21 ms | 0% | No ✅ |
-| p99 | 27 ms | 26 ms | -4% | No ✅ |
-| Throughput | 43.5 req/s | 43.6 req/s | +0.2% | No ✅ |
+| p95 | 22 ms | 21 ms | -5% | No ✅ |
+| p99 | 139 ms | 26 ms | -81% | No ✅ |
+| Throughput | 43.0 req/s | 43.6 req/s | +1.4% | No ✅ |
 | Error rate | 0.00% | 0.00% | 0% | No ✅ |
 
 > Se considera regresión cuando cualquier métrica empeora más del **20%** respecto al baseline. Ninguna métrica supera este umbral.
@@ -313,7 +316,7 @@ El Baseline y el Regression Test son candidatos naturales para CI/CD: corren en 
 
 ## 10. Conclusiones
 
-El API Registraduría (`POST /register`) es **apto para producción bajo carga nominal** (hasta 100 VUs con pacing) con todos los SLOs cumplidos: p95=64ms (SLO<300ms), p99=100ms (SLO<800ms), error rate HTTP=0%, throughput=375 req/s (SLO>10 req/s).
+El API Registraduría (`POST /register`) es **apto para producción bajo carga nominal** (hasta 100 VUs con pacing) con todos los SLOs cumplidos: p95=101ms (SLO<300ms), p99=134ms (SLO<800ms), error rate HTTP=0%, throughput=372 req/s (SLO>10 req/s).
 
 Los **riesgos identificados** para entornos de alta concurrencia son: (1) el thread pool de Tomcat se satura entre 400-600 VUs, produciendo latencias inaceptables; (2) el sistema no absorbe picos abruptos de 300 VUs manteniendo p95<300ms; (3) la ausencia de `ConcurrentHashMap` representa un riesgo teórico de condición de carrera en producción bajo alta concurrencia sostenida.
 
