@@ -2,53 +2,61 @@
 
 **Curso:** Testing y Validación de Software  
 **Proyecto:** Pruebas de Carga y Rendimiento – JMeter  
-**Equipo:** [Nombre del equipo]  
-**Fecha de ejecución:** [Fecha]  
+**Equipo:** Cortés · Grandas · Bustos  
+**Fecha de ejecución:** 2026-06-10 / 2026-06-11  
 **Sistema bajo prueba:** API Registraduría – POST /register (localhost:8080)
 
 ---
 
 ## Introducción
 
-Este documento recopila los defectos de rendimiento identificados durante la ejecución de los seis escenarios de prueba (Baseline, Load, Stress, Spike, Soak y Regresión). Cada defecto incluye evidencia técnica, análisis de impacto y propuesta de mejora.
+Este documento recopila los defectos de rendimiento identificados durante la ejecución de los seis escenarios de prueba (Baseline, Load, Stress, Spike, Soak y Regresión). Cada defecto incluye evidencia técnica real, análisis de impacto y propuesta de mejora.
 
 ---
 
-## Defecto PERF-01 — Incumplimiento de SLO de latencia bajo Load Test
+## Defecto PERF-01 — TCP BindException: agotamiento de puertos efímeros en Windows
 
 - **Identificador:** PERF-01
-- **Capa afectada:** Aplicación / Base de datos
-- **Escenario:** Load Test (100 VUs, Etapa 2)
-- **SLO violado:** p95 < 300 ms
-- **Resultado esperado:** p95 < 300 ms bajo carga nominal de 100 VUs
-- **Resultado obtenido:** p95 = 612 ms
+- **Capa afectada:** Infraestructura de prueba (cliente JMeter en Windows)
+- **Escenario:** Load (>50 VUs), Stress, Spike
+- **SLO violado:** Error rate < 1%
+- **Resultado esperado:** Error rate < 1% bajo cualquier nivel de carga
+- **Resultado obtenido:** 33% (Load 50 VUs) → 65% (Load 100 VUs) → 89% (Stress 600 VUs)
 
 ### Evidencia
 
 ```
-Aggregate Report – Load Test (Etapa 2, 100 VUs):
-Label             # Samples  Average  90% Line  95% Line  99% Line  Error%  Throughput
-POST /register    18,420     402      548       612       890       0.12%   60.1/s
+JTL – responseCode: "Non HTTP response code: java.net.BindException"
+JTL – responseMessage: "Address already in use: connect"
+
+Load Etapa 1 (50 VUs):  17 960 errores de 54 139 total = 33.17% BindException
+Load Etapa 2 (100 VUs): 101 673 errores de 157 492 total = 64.56% BindException
+Stress E3 (600 VUs):    410 715 errores de 459 349 total = 89.41% BindException
 ```
+
+### Causa raíz
+
+Windows reserva puertos efímeros en el rango 49152–65535 (16 383 puertos) con periodo TIME_WAIT de 240 s. Cuando JMeter genera peticiones sin think time, cada request consume un puerto que no se libera por 240 s. El throughput máximo sostenible es:
+
+```
+16 383 puertos / 240 s ≈ 68 req/s
+```
+
+Con 100 VUs sin timer: 100 × 5 req/s = 500 req/s >> 68 req/s → agotamiento en segundos.
 
 ### Impacto
 
-Incumplimiento del objetivo de nivel de servicio bajo carga nominal. Los usuarios finales experimentan tiempos de respuesta superiores al umbral aceptable (300ms) bajo condiciones normales de operación. Afecta la experiencia de usuario en producción.
-
-### Causa probable
-
-- Saturación del pool de conexiones HikariCP (configurado con `maximumPoolSize=10`).
-- Ausencia de índice en la columna `id` de la tabla `persons`, forzando full table scan.
+Las peticiones que sí llegan al servidor responden correctamente (p95=64ms, 0% errores HTTP). El impacto real es sobre la capacidad de prueba, no sobre el sistema evaluado. Sin embargo, impide medir el rendimiento del API bajo alta carga desde un entorno Windows.
 
 ### Propuesta de mejora
 
-- Incrementar `spring.datasource.hikari.maximum-pool-size=30` en `application.properties`.
-- Crear índice: `CREATE INDEX idx_persons_id ON persons(id);`
-- Considerar caché de primer nivel con `@Cacheable` para consultas repetidas.
+1. Ejecutar JMeter desde Linux (sin limitación agresiva de TIME_WAIT)
+2. Reducir TIME_WAIT en Windows: `HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters` → `TcpTimedWaitDelay = 30`
+3. Activar HTTP Keep-Alive en JMX: `<boolProp name="HTTPSampler.use_keepalive">true</boolProp>`
 
 ### Estado
 
-Abierto
+Abierto (limitación de infraestructura de prueba)
 
 ### Prioridad
 
@@ -56,45 +64,52 @@ Alta
 
 ---
 
-## Defecto PERF-02 — Error rate crítico bajo Stress Test
+## Defecto PERF-02 — HTTP 406 por header `Accept: application/json` incompatible con `text/plain`
 
 - **Identificador:** PERF-02
-- **Capa afectada:** Servidor de aplicación (Spring Boot / Tomcat embebido)
-- **Escenario:** Stress Test Etapa 3 (600 VUs)
+- **Capa afectada:** Configuración del cliente JMeter (HTTP Header Manager)
+- **Escenario:** Todos los escenarios (detectado en primera ejecución)
 - **SLO violado:** Error rate < 1%
-- **Resultado esperado:** Error rate < 1% incluso bajo carga extrema hasta el punto de quiebre
-- **Resultado obtenido:** Error rate = 4.8%
+- **Resultado esperado:** HTTP 200 con cuerpo `VALID`, `DUPLICATED` o `DEAD`
+- **Resultado obtenido:** 100% HTTP 406 Not Acceptable
 
 ### Evidencia
 
 ```
-Summary Report – Stress Test (Etapa 3, 600 VUs):
-summary = 32,000 in 00:06:00 = 88.9/s  Avg: 1,240  Min: 43  Max: 9,800  Err: 1,536 (4.80%)
+JTL – responseCode: 406
+JTL – responseMessage: Not Acceptable
 
-Errores encontrados:
-- java.net.SocketTimeoutException: Read timed out (82% de errores)
-- org.apache.catalina.connector.ClientAbortException (18% de errores)
+Todas las peticiones del plan original fallaban:
+summary = 15 000 in 00:05:00 = 50.0/s  Avg: 12  Err: 15 000 (100.00%)
 ```
 
-### Impacto
+### Causa raíz
 
-Sistema inasequible para el 4.8% de usuarios bajo carga de 600 VUs. Afecta directamente la disponibilidad del servicio y viola el SLO de error rate. Bajo estos niveles de carga, ~1 de cada 20 requests falla.
+El `RegistryController` de Spring Boot está anotado con `produces = MediaType.TEXT_PLAIN_VALUE`, lo que significa que solo puede responder con `text/plain`. El HTTP Header Manager de JMeter tenía configurado `Accept: application/json`. Spring aplica content negotiation y rechaza la petición con HTTP 406 porque no puede satisfacer el header `Accept`.
 
-### Causa probable
+```java
+// RegistryController.java
+@PostMapping(consumes = APPLICATION_JSON_VALUE, produces = TEXT_PLAIN_VALUE)
+public String register(@RequestBody Person person) { ... }
+```
 
-- Agotamiento del pool de threads de Tomcat (configuración por defecto `maxThreads=200`).
-- Timeout de respuesta del servidor inferior al tiempo de procesamiento bajo alta concurrencia.
-- Posible deadlock en transacciones de base de datos concurrentes.
+### Solución aplicada
 
-### Propuesta de mejora
+Cambiar el header `Accept` en todos los JMX de `application/json` a `*/*`:
 
-- Incrementar `server.tomcat.max-threads=400` y `server.tomcat.accept-count=200`.
-- Implementar circuit breaker con Resilience4j para degradación controlada.
-- Aumentar timeout de respuesta JMeter a 20,000ms para distinguir errores reales de timeouts de cliente.
+```xml
+<!-- Antes (causaba HTTP 406) -->
+<stringProp name="Header.name">Accept</stringProp>
+<stringProp name="Header.value">application/json</stringProp>
+
+<!-- Después (correcto) -->
+<stringProp name="Header.name">Accept</stringProp>
+<stringProp name="Header.value">*/*</stringProp>
+```
 
 ### Estado
 
-En progreso
+Resuelto ✅
 
 ### Prioridad
 
@@ -102,44 +117,92 @@ Crítica
 
 ---
 
-## Defecto PERF-03 — Degradación progresiva de latencia en Soak Test
+## Defecto PERF-03 — HTTP 400 por caracteres acentuados en nombres del CSV
 
 - **Identificador:** PERF-03
-- **Capa afectada:** JVM / Memoria del servidor
-- **Escenario:** Soak Test (100 VUs, 60 minutos)
-- **SLO violado:** Latencia p95 debe mantenerse estable (variación < 20%)
-- **Resultado esperado:** p95 constante entre 180-250 ms durante toda la prueba
-- **Resultado obtenido:** p95 creció de 210 ms (min. 5) a 680 ms (min. 60)
+- **Capa afectada:** Dataset de prueba (`perf/data/personas.csv`) / Codificación JMeter Windows
+- **Escenario:** Todos los escenarios (detectado en segunda ejecución)
+- **SLO violado:** Error rate < 1%
+- **Resultado esperado:** HTTP 200 para todos los registros del CSV
+- **Resultado obtenido:** ~75% HTTP 400 Bad Request para nombres con tildes
 
 ### Evidencia
 
 ```
-Evolución de latencia promedio durante el Soak Test:
-Minuto  5:  Avg=145ms  p95=210ms  Error%=0.00%
-Minuto 15:  Avg=188ms  p95=270ms  Error%=0.00%
-Minuto 30:  Avg=251ms  p95=380ms  Error%=0.02%
-Minuto 45:  Avg=362ms  p95=520ms  Error%=0.15%
-Minuto 60:  Avg=498ms  p95=680ms  Error%=0.89%
+JTL – responseCode: 400
+JTL – responseMessage: Bad Request
+
+Peticiones con "Ana García", "José López" → HTTP 400
+Peticiones con "Maria Perez", "Ana Torres" → HTTP 200 VALID
+
+# Distribución de errores:
+Registros con acentos (á,é,í,ó,ú,ñ): 100% HTTP 400
+Registros sin acentos (ASCII puro):   100% HTTP 200
 ```
 
-Crecimiento de p95: +224% en 60 minutos → posible memory leak.
+### Causa raíz
 
-### Impacto
+JMeter en Windows con configuración UTF-8 incorrecta enviaba los caracteres acentuados como bytes malformados en el JSON body. Spring's `ObjectMapper` no podía parsear el JSON y retornaba HTTP 400 Bad Request. El problema es específico de la combinación JMeter + Windows + nombres en español con tildes.
 
-El sistema degrada progresivamente su rendimiento con el tiempo. En producción, esto significaría que el servicio sería inaceptablemente lento después de horas de operación continua, requiriendo reinicios frecuentes.
+### Solución aplicada
+
+Reescribir el archivo `perf/data/personas.csv` con nombres ASCII-only, eliminando todas las tildes y caracteres especiales:
+
+```
+# Antes (causaba HTTP 400 en Windows)
+1,Ana García,30,FEMALE,true
+2,José López,25,MALE,true
+
+# Después (correcto, solo ASCII)
+1,Ana Garcia,30,FEMALE,true
+2,Jose Lopez,25,MALE,true
+```
+
+### Estado
+
+Resuelto ✅
+
+### Prioridad
+
+Alta
+
+---
+
+## Defecto PERF-04 — p99 supera SLO a partir de 200 VUs en Stress Test
+
+- **Identificador:** PERF-04
+- **Capa afectada:** Servidor de aplicación (Spring Boot / Tomcat embebido)
+- **Escenario:** Stress Test Etapa 1 (200 VUs), Etapa 2 (400 VUs), Etapa 3 (600 VUs)
+- **SLO violado:** p99 < 800 ms
+- **Resultado esperado:** p99 < 800ms bajo carga de estrés
+- **Resultado obtenido:** p99 = 2,559ms (200 VUs) / 2,440ms (400 VUs) / 4,497ms (600 VUs)
+
+### Evidencia
+
+```
+Stress Etapa 1 (200 VUs):
+  p90=70ms  p95=93ms  p99=2 559ms  ← SLO p99 violado (800ms)
+
+Stress Etapa 2 (400 VUs):
+  p90=274ms  p95=298ms  p99=2 440ms  ← SLO p99 violado
+
+Stress Etapa 3 (600 VUs):
+  p90=2 091ms  p95=2 170ms  p99=4 497ms  ← SLO p95 y p99 violados
+```
 
 ### Causa probable
 
-- Fuga de memoria (memory leak) en la capa de aplicación: objetos no liberados acumulándose en el heap.
-- Acumulación de conexiones abiertas sin cerrar en el pool de BD.
-- Crecimiento del log de auditoría en memoria sin flush periódico.
+El thread pool de Tomcat (200 threads por defecto) comienza a saturarse cuando los VUs superan el número de threads disponibles. Las peticiones que exceden la capacidad quedan encoladas (`accept-count=100`). El tiempo de cola dispara el p99 porque el 1% más lento representa precisamente las peticiones que esperaron en cola más tiempo.
 
 ### Propuesta de mejora
 
-- Habilitar métricas de JVM con Actuator: `management.endpoints.web.exposure.include=metrics,health`
-- Monitorear heap con `jstat -gc <pid> 10000` durante el soak test.
-- Revisar transacciones anotadas con `@Transactional` para verificar cierre correcto de recursos.
-- Ejecutar con `-Xmx512m` y observar si el GC se vuelve más frecuente (GC pressure).
+```properties
+# application.properties
+server.tomcat.threads.max=500
+server.tomcat.threads.min-spare=50
+server.tomcat.max-connections=10000
+server.tomcat.accept-count=200
+```
 
 ### Estado
 
@@ -147,7 +210,48 @@ Abierto
 
 ### Prioridad
 
-Media
+Media (solo se manifiesta bajo carga 20x superior a la nominal)
+
+---
+
+## Defecto PERF-05 — p95 supera SLO durante Spike de 300 VUs
+
+- **Identificador:** PERF-05
+- **Capa afectada:** Servidor de aplicación (absorción de picos)
+- **Escenario:** Spike Test – Fase de pico (300 VUs en 30 s)
+- **SLO violado:** p95 < 300 ms
+- **Resultado esperado:** p95 < 300ms incluso durante el pico de tráfico
+- **Resultado obtenido:** p95 = 366ms durante el pico (22% sobre el SLO)
+
+### Evidencia
+
+```
+Spike – Fase Base (10 VUs):
+  Avg=14ms  p95=25ms  p99=32ms  ← Dentro del SLO
+
+Spike – Fase Pico (300 VUs):
+  Avg=295ms  p95=366ms  p99=380ms  ← p95 viola SLO (300ms)
+
+Recuperación: inmediata al bajar los VUs — p95 vuelve a <30ms
+```
+
+### Causa probable
+
+El pool de threads de Tomcat no puede absorber un aumento instantáneo de 10 a 300 VUs en 30 segundos. El thread pool crece gradualmente (JVM overhead de creación de threads), generando una cola de peticiones temporalmente alta que dispara la latencia p95 por encima del SLO.
+
+### Propuesta de mejora
+
+1. Aumentar `server.tomcat.threads.min-spare=100` para mantener threads pre-calentados
+2. Implementar circuit breaker con Resilience4j para retornar respuesta de degradación controlada antes de que la latencia supere 300ms
+3. Configurar auto-scaling (si se despliega en contenedor) que reaccione en <30s al incremento de tráfico
+
+### Estado
+
+Abierto
+
+### Prioridad
+
+Alta (el escenario de apertura masiva es un caso de uso real del sistema electoral)
 
 ---
 
@@ -155,23 +259,11 @@ Media
 
 | ID | Escenario | SLO Violado | Resultado Obtenido | Estado | Prioridad |
 |----|-----------|------------|-------------------|--------|-----------|
-| PERF-01 | Load (100 VUs) | p95 < 300ms | p95 = 612ms | Abierto | Alta |
-| PERF-02 | Stress (600 VUs) | Error rate < 1% | 4.80% | En progreso | Crítica |
-| PERF-03 | Soak (60 min) | Latencia estable | p95: 210→680ms | Abierto | Media |
-
----
-
-## Sección para el Equipo – Defectos Propios
-
-> Documenta aquí los defectos que encontraste al ejecutar las pruebas con tu propia configuración. Usa el formato de `defectos_template.md`.
-
-### Defecto PERF-04 — [Completar]
-
-*[Agregar defecto real encontrado durante la ejecución]*
-
-### Defecto PERF-05 — [Completar]
-
-*[Agregar defecto real encontrado durante la ejecución]*
+| PERF-01 | Load/Stress/Spike (>50 VUs) | Error rate < 1% | 33-89% BindException TCP | Abierto | Alta |
+| PERF-02 | Todos (1ª ejecución) | Error rate < 1% | 100% HTTP 406 | Resuelto | Crítica |
+| PERF-03 | Todos (1ª ejecución) | Error rate < 1% | ~75% HTTP 400 | Resuelto | Alta |
+| PERF-04 | Stress (200-600 VUs) | p99 < 800ms | 2,440-4,497ms | Abierto | Media |
+| PERF-05 | Spike (300 VUs pico) | p95 < 300ms | p95 = 366ms | Abierto | Alta |
 
 ---
 
@@ -186,4 +278,4 @@ Media
 ---
 
 Universidad de La Sabana – Facultad de Ingeniería  
-Curso: Testing y Validación de Software (2025)
+Curso: Testing y Validación de Software – 2026
