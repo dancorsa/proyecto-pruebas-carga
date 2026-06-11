@@ -285,16 +285,29 @@ El cuello de botella principal del sistema es el **thread pool de Tomcat** (200 
 
 ## 8. Evidencia Visual
 
-| # | Descripción | Archivo / Ruta |
-|---|-------------|---------------|
-| 1 | Reporte HTML – Baseline | `perf/results/01_baseline-report/index.html` |
-| 2 | Reporte HTML – Load | `perf/results/02_load-report/index.html` |
-| 3 | Reporte HTML – Stress | `perf/results/03_stress-report/index.html` |
-| 4 | Reporte HTML – Spike | `perf/results/04_spike-report/index.html` |
-| 5 | Reporte HTML – Soak | `perf/results/05_soak-report/index.html` |
-| 6 | Reporte HTML – Regresión | `perf/results/06_regression-report/index.html` |
+### Capturas de pantalla (Statistics por escenario)
 
-> Los reportes HTML se generan localmente ejecutando cada escenario con `-e -o perf/results/<nombre>-report/`. No están versionados en el repositorio (excluidos por `.gitignore`) por su tamaño. Ver Wiki sección [[4.-Resultados-por-Escenario]] para las métricas detalladas.
+| Archivo | Escenario | Métricas clave |
+|---------|-----------|----------------|
+| [`perf/results/screenshots/01_baseline_statistics.png`](perf/results/screenshots/01_baseline_statistics.png) | Baseline (10 VUs) | p95=22ms, p99=139ms, throughput=43.0 req/s, error=0.00% |
+| [`perf/results/screenshots/02_load_statistics.png`](perf/results/screenshots/02_load_statistics.png) | Load (50→100 VUs) | p95=101ms, p99=134ms, throughput=372 req/s, error HTTP=0.00% |
+| [`perf/results/screenshots/03_stress_statistics.png`](perf/results/screenshots/03_stress_statistics.png) | Stress (200→600 VUs) | p95=2170ms (E3), punto de quiebre entre 400-600 VUs |
+| [`perf/results/screenshots/04_spike_statistics.png`](perf/results/screenshots/04_spike_statistics.png) | Spike (300 VUs pico) | p95=366ms durante pico, recuperación inmediata |
+| [`perf/results/screenshots/05_soak_statistics.png`](perf/results/screenshots/05_soak_statistics.png) | Soak (100 VUs, 60 min) | p95=22ms estable, error=0.007%, sin degradación |
+| [`perf/results/screenshots/06_regression_statistics.png`](perf/results/screenshots/06_regression_statistics.png) | Regresión (10 VUs) | p95=21ms, sin regresión vs baseline |
+
+> Las capturas se encuentran en `perf/results/screenshots/`. Los reportes HTML interactivos completos se generan localmente y están excluidos del repositorio por tamaño (ver `.gitignore`).
+
+### Cómo reproducir los reportes HTML
+
+```bash
+jmeter -n -t perf/scripts/01_baseline_test.jmx  -l perf/results/01_baseline.jtl  -e -o perf/results/01_baseline-report/
+jmeter -n -t perf/scripts/02_load_test.jmx       -l perf/results/02_load.jtl       -e -o perf/results/02_load-report/
+jmeter -n -t perf/scripts/03_stress_test.jmx     -l perf/results/03_stress.jtl     -e -o perf/results/03_stress-report/
+jmeter -n -t perf/scripts/04_spike_test.jmx      -l perf/results/04_spike.jtl      -e -o perf/results/04_spike-report/
+jmeter -n -t perf/scripts/05_soak_test.jmx       -l perf/results/05_soak.jtl       -e -o perf/results/05_soak-report/
+jmeter -n -t perf/scripts/06_regression_test.jmx -l perf/results/06_regression.jtl -e -o perf/results/06_regression-report/
+```
 
 ---
 
