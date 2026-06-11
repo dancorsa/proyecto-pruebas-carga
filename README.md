@@ -1,7 +1,7 @@
 # Proyecto Final – Pruebas de Carga y Rendimiento con JMeter
 
 **Curso:** Testing y Validación de Software  
-**Programa:** Maestría en Ingeniería de Software – Universidad de La Sabana  
+**Programa:** Maestría en Arquitectura de Software – Universidad de La Sabana  
 **Basado en:** [TYVS-Proyecto_Pruebas_carga_y_rendimiento](https://github.com/CesarAVegaF312/TYVS-Proyecto_Pruebas_carga_y_rendimiento)
 
 ---
@@ -275,7 +275,7 @@ Este proyecto introduce la **dimensión temporal y de resiliencia** del sistema:
 
 **Autor:** César Augusto Vega Fernández  
 **Curso:** Testing y Validación de Software  
-**Programa:** Maestría en Ingeniería de Software – Universidad de La Sabana  
+**Programa:** Maestría en Arquitectura de Software – Universidad de La Sabana  
 **Año:** 2025
 
 Material de uso **exclusivamente académico**. Este material se distribuye bajo la licencia [Creative Commons Atribución-NoComercial-CompartirIgual 4.0 Internacional (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.es).
@@ -283,4 +283,4 @@ Material de uso **exclusivamente académico**. Este material se distribuye bajo 
 ---
 
 © Universidad de La Sabana – Facultad de Ingeniería  
-Maestría en Ingeniería de Software – 2025
+Maestría en Arquitectura de Software – 2025
