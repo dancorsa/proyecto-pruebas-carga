@@ -88,6 +88,10 @@ ADVERTENCIA: Esta prueba tarda 60 minutos. No interrumpir durante la ejecución.
           <intProp name="HTTPSampler.response_timeout">10000</intProp>
         </HTTPSamplerProxy>
         <hashTree>
+          <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Pacing 1500ms" enabled="true">
+            <stringProp name="ConstantTimer.delay">1500</stringProp>
+          </ConstantTimer>
+          <hashTree/>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assertion – VALID" enabled="false">
             <collectionProp name="Asserion.test_strings">
               <stringProp name="49586">VALID</stringProp>
