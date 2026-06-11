@@ -186,14 +186,14 @@ En cada escenario se debe reportar y analizar:
 
 ### Tabla comparativa de resultados (completar por el equipo)
 
-| Escenario | VUs pico | p95 (ms) | p99 (ms) | Throughput (req/s) | Error% | ¿Cumple SLO? |
-|-----------|---------|---------|---------|------------------|--------|-------------|
-| Baseline | 10 | — | — | — | — | — |
-| Load | 100 | — | — | — | — | — |
-| Stress | 600 | — | — | — | — | — |
-| Spike | 300 | — | — | — | — | — |
-| Soak (60 min) | 100 | — | — | — | — | — |
-| Regresión | 10 | — | — | — | — | — |
+| Escenario | VUs pico | p95 (ms) | p99 (ms) | Throughput (req/s) | Error% HTTP | ¿Cumple SLO? |
+|-----------|---------|---------|---------|------------------|------------|-------------|
+| Baseline | 10 | 21 | 27 | 43.5 | 0.00% | ✅ Todos |
+| Load E2 | 100 | 64 | 100 | 375 | 0.00% | ✅ Todos |
+| Stress E3 | 600 | 2 170 | 4 497 | 1 272 | 0.00% | ❌ p95 y p99 |
+| Spike pico | 300 | 366 | 380 | 834 | 0.00% | ❌ p95 |
+| Soak (60 min) | 100 | 22 | 30 | 63 | 0.007% | ✅ Todos |
+| Regresión | 10 | 21 | 26 | 43.6 | 0.00% | ✅ Todos |
 
 ---
 
