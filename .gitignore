@@ -1,6 +1,7 @@
 # JMeter resultados (archivos grandes, no versionar)
 perf/results/*.jtl
 perf/results/*_report/
+perf/results/*-report/
 perf/results/**/*.log
 
 # JMeter archivos temporales
