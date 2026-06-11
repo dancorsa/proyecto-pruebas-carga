@@ -1,0 +1,18 @@
+# JMeter resultados (archivos grandes, no versionar)
+perf/results/*.jtl
+perf/results/*_report/
+perf/results/**/*.log
+
+# JMeter archivos temporales
+*.jmx.bak
+jmeter.log
+
+# Java
+target/
+*.class
+*.jar
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

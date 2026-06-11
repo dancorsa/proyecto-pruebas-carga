@@ -1,0 +1,34 @@
+# Integrantes del Equipo – Proyecto Pruebas de Carga y Rendimiento
+
+Curso: Testing y Validación de Software
+Programa: Maestría en Ingeniería de Software – Universidad de La Sabana
+Año: 2025
+
+## Equipo
+
+Integrante 1:
+  Nombre completo: [Nombre completo]
+  Código estudiantil: [Código]
+  Correo institucional: [correo@unisabana.edu.co]
+
+Integrante 2:
+  Nombre completo: [Nombre completo]
+  Código estudiantil: [Código]
+  Correo institucional: [correo@unisabana.edu.co]
+
+Integrante 3 (si aplica):
+  Nombre completo: [Nombre completo]
+  Código estudiantil: [Código]
+  Correo institucional: [correo@unisabana.edu.co]
+
+## Sistema bajo prueba
+
+Aplicación: [Nombre de la aplicación evaluada]
+Endpoint principal: [URL del endpoint probado]
+Tecnología: [Spring Boot / Node.js / etc.]
+Ambiente: [Local / Docker / otro]
+
+## Repositorio
+
+URL del repositorio GitHub: [URL]
+URL de la Wiki: [URL]/wiki

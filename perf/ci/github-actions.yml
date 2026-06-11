@@ -1,0 +1,179 @@
+name: Performance Tests – JMeter (Proyecto Completo)
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Host de la aplicación (sin protocolo ni puerto)'
+        required: false
+        default: 'localhost'
+      port:
+        description: 'Puerto de la aplicación'
+        required: false
+        default: '8080'
+      scenario:
+        description: 'Escenario a ejecutar (all / baseline / load / stress / spike)'
+        required: false
+        default: 'all'
+  pull_request:
+    branches:
+      - main
+      - master
+
+env:
+  JMETER_VERSION: "5.6.3"
+  JMETER_HOME: "/opt/apache-jmeter-5.6.3"
+
+jobs:
+  performance-tests:
+    name: Ejecutar Pruebas de Rendimiento – JMeter
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      # ── 2. Java 11 ───────────────────────────────────────────────────────
+      - name: Configurar Java 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+
+      # ── 3. Instalar JMeter ───────────────────────────────────────────────
+      - name: Instalar Apache JMeter ${{ env.JMETER_VERSION }}
+        run: |
+          wget -q https://downloads.apache.org/jmeter/binaries/apache-jmeter-${{ env.JMETER_VERSION }}.tgz
+          tar -xzf apache-jmeter-${{ env.JMETER_VERSION }}.tgz -C /opt/
+          echo "${{ env.JMETER_HOME }}/bin" >> $GITHUB_PATH
+
+      # ── 4. Crear directorio de resultados ────────────────────────────────
+      - name: Preparar directorios de resultados
+        run: mkdir -p perf/results
+
+      # ── 5. Levantar aplicación (si no hay URL de entorno) ────────────────
+      - name: Levantar aplicación registraduria (modo CI)
+        if: ${{ secrets.PERF_BASE_URL == '' }}
+        run: |
+          if [ -d "src" ] || [ -f "pom.xml" ]; then
+            mvn clean spring-boot:run -Dspring-boot.run.jvmArguments="-Xmx512m" &
+            echo "Esperando inicio de la aplicación..."
+            for i in {1..30}; do
+              curl -sf http://localhost:8080/actuator/health && break || sleep 5
+            done
+          else
+            echo "No se encontró aplicación local. Asegúrate de definir PERF_BASE_URL como secret."
+          fi
+
+      # ── 6. Baseline Test ─────────────────────────────────────────────────
+      - name: Baseline Test (10 VUs, 5 min)
+        if: ${{ github.event.inputs.scenario == 'all' || github.event.inputs.scenario == 'baseline' || github.event.inputs.scenario == '' }}
+        run: |
+          BASE=${PERF_BASE_URL:-${{ github.event.inputs.base_url || 'localhost' }}}
+          jmeter -n \
+            -t perf/scripts/01_baseline_test.jmx \
+            -JBASE_URL=${BASE} \
+            -JPORT=${{ github.event.inputs.port || '8080' }} \
+            -l perf/results/01_baseline.jtl \
+            -e -o perf/results/01_baseline-report/ \
+            -j perf/results/01_baseline_jmeter.log
+        env:
+          PERF_BASE_URL: ${{ secrets.PERF_BASE_URL }}
+
+      # ── 7. Load Test ─────────────────────────────────────────────────────
+      - name: Load Test (hasta 100 VUs, ~14 min)
+        if: ${{ github.event.inputs.scenario == 'all' || github.event.inputs.scenario == 'load' || github.event.inputs.scenario == '' }}
+        run: |
+          BASE=${PERF_BASE_URL:-${{ github.event.inputs.base_url || 'localhost' }}}
+          jmeter -n \
+            -t perf/scripts/02_load_test.jmx \
+            -JBASE_URL=${BASE} \
+            -JPORT=${{ github.event.inputs.port || '8080' }} \
+            -l perf/results/02_load.jtl \
+            -e -o perf/results/02_load-report/ \
+            -j perf/results/02_load_jmeter.log
+        env:
+          PERF_BASE_URL: ${{ secrets.PERF_BASE_URL }}
+
+      # ── 8. Stress Test ───────────────────────────────────────────────────
+      - name: Stress Test (hasta 600 VUs, ~14 min)
+        if: ${{ github.event.inputs.scenario == 'all' || github.event.inputs.scenario == 'stress' || github.event.inputs.scenario == '' }}
+        run: |
+          BASE=${PERF_BASE_URL:-${{ github.event.inputs.base_url || 'localhost' }}}
+          jmeter -n \
+            -t perf/scripts/03_stress_test.jmx \
+            -JBASE_URL=${BASE} \
+            -JPORT=${{ github.event.inputs.port || '8080' }} \
+            -l perf/results/03_stress.jtl \
+            -e -o perf/results/03_stress-report/ \
+            -j perf/results/03_stress_jmeter.log
+        env:
+          PERF_BASE_URL: ${{ secrets.PERF_BASE_URL }}
+
+      # ── 9. Spike Test ────────────────────────────────────────────────────
+      - name: Spike Test (hasta 300 VUs, ~8 min)
+        if: ${{ github.event.inputs.scenario == 'all' || github.event.inputs.scenario == 'spike' || github.event.inputs.scenario == '' }}
+        run: |
+          BASE=${PERF_BASE_URL:-${{ github.event.inputs.base_url || 'localhost' }}}
+          jmeter -n \
+            -t perf/scripts/04_spike_test.jmx \
+            -JBASE_URL=${BASE} \
+            -JPORT=${{ github.event.inputs.port || '8080' }} \
+            -l perf/results/04_spike.jtl \
+            -e -o perf/results/04_spike-report/ \
+            -j perf/results/04_spike_jmeter.log
+        env:
+          PERF_BASE_URL: ${{ secrets.PERF_BASE_URL }}
+
+      # ── 10. Quality Gate – Baseline ──────────────────────────────────────
+      - name: Quality Gate – Baseline (error rate < 1%)
+        if: always()
+        run: |
+          if [ -f perf/results/01_baseline.jtl ]; then
+            TOTAL=$(awk -F',' 'NR>1 {c++} END {print c+0}' perf/results/01_baseline.jtl)
+            ERRORS=$(awk -F',' 'NR>1 && $8=="false" {c++} END {print c+0}' perf/results/01_baseline.jtl)
+            if [ "$TOTAL" -gt 0 ]; then
+              ERROR_RATE=$(echo "scale=4; $ERRORS * 100 / $TOTAL" | bc)
+              echo "Baseline error rate: ${ERROR_RATE}%"
+              FAIL=$(echo "$ERROR_RATE > 1.0" | bc -l)
+              if [ "$FAIL" -eq 1 ]; then
+                echo "❌ QUALITY GATE FALLO: Error rate ${ERROR_RATE}% supera SLO de 1%"
+                exit 1
+              else
+                echo "✅ Quality gate OK: Error rate ${ERROR_RATE}%"
+              fi
+            fi
+          fi
+
+      # ── 11. Publicar todos los artefactos ────────────────────────────────
+      - name: Publicar resultados y reportes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmeter-results-${{ github.run_number }}
+          path: |
+            perf/results/*.jtl
+            perf/results/*-report/
+            perf/results/*.log
+          retention-days: 30
+
+      # ── 12. Resumen del job ──────────────────────────────────────────────
+      - name: Resumen de ejecución
+        if: always()
+        run: |
+          echo "## Resultados de Pruebas de Rendimiento – JMeter" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Escenario | Solicitudes | Estado |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          for scenario in 01_baseline 02_load 03_stress 04_spike; do
+            JTL="perf/results/${scenario}.jtl"
+            if [ -f "$JTL" ]; then
+              TOTAL=$(awk -F',' 'NR>1 {c++} END {print c+0}' "$JTL")
+              echo "| ${scenario} | ${TOTAL} solicitudes | ✅ Ejecutado |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| ${scenario} | — | ⏭️ Omitido |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Reportes HTML disponibles en los artefactos del job." >> $GITHUB_STEP_SUMMARY
