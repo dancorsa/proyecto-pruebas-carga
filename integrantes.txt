@@ -1,34 +1,29 @@
 # Integrantes del Equipo – Proyecto Pruebas de Carga y Rendimiento
 
 Curso: Testing y Validación de Software
-Programa: Maestría en Ingeniería de Software – Universidad de La Sabana
-Año: 2025
+Programa: Maestría en Arquitectura de Software – Universidad de La Sabana
+Año: 2026
 
 ## Equipo
 
 Integrante 1:
-  Nombre completo: [Nombre completo]
-  Código estudiantil: [Código]
-  Correo institucional: [correo@unisabana.edu.co]
+  Nombre completo: Danilo Andrés Cortés Saavedra
 
 Integrante 2:
-  Nombre completo: [Nombre completo]
-  Código estudiantil: [Código]
-  Correo institucional: [correo@unisabana.edu.co]
+  Nombre completo: David Ricardo Grandas Cárdenas
 
-Integrante 3 (si aplica):
-  Nombre completo: [Nombre completo]
-  Código estudiantil: [Código]
-  Correo institucional: [correo@unisabana.edu.co]
+Integrante 3:
+  Nombre completo: Edisson Steven Bustos Galeano
 
 ## Sistema bajo prueba
 
-Aplicación: [Nombre de la aplicación evaluada]
-Endpoint principal: [URL del endpoint probado]
-Tecnología: [Spring Boot / Node.js / etc.]
-Ambiente: [Local / Docker / otro]
+Aplicación: API Registraduría – Sistema de Registro de Votantes
+Endpoint principal: POST http://localhost:8080/register
+Tecnología: Spring Boot 2.7.18 / Java 11 / Tomcat embebido
+Ambiente: Local (Windows 11) con JMeter 5.4.3
 
-## Repositorio
+## Repositorios
 
-URL del repositorio GitHub: [URL]
-URL de la Wiki: [URL]/wiki
+Taller pruebas de carga: https://github.com/dancorsa/taller-pruebas-carga
+Proyecto pruebas de carga: https://github.com/dancorsa/proyecto-pruebas-carga
+Wiki del proyecto: https://github.com/dancorsa/proyecto-pruebas-carga/wiki
